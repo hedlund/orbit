@@ -1,0 +1,51 @@
+# https://taskfile.dev
+
+version: "3"
+
+tasks:
+  run:
+    desc: Run the server
+    cmds:
+      - go run ./cmd/server
+
+  run:tls:
+    desc: Run the server with TLS
+    deps:
+      - generate:cert
+    cmds:
+      - go run ./cmd/server
+    env:
+      PORT: 8443
+      TLS_ENABLED: true
+      TLS_KEY_FILE: deploy/localhost.key
+      TLS_CERT_FILE: deploy/localhost.pem
+
+  build:docker:
+    desc: Build Docker container image
+    cmds:
+      - docker build --file build/Dockerfile -t hedlund/orbit .
+
+  generate:cert:
+    desc: Generate SSL/TLS certificate for localhost
+    cmds:
+      - mkcert --cert-file deploy/localhost.pem --key-file deploy/localhost.key localhost.localdomain localhost
+      - mkcert -install
+    status:
+      - test -f deploy/localhost.pem
+      - test -f deploy/localhost.key
+
+  test:
+    desc: Run the tests
+    cmds:
+      - go test -race -cover ./...
+
+  help:
+    desc: Display this help
+    silent: true
+    cmds:
+      - task --list
+
+  default:
+    silent: true
+    cmds:
+      - task: help
