@@ -36,7 +36,7 @@ func main() {
 	log := slog.New(slog.NewTextHandler(os.Stdout))
 
 	var repo modules.Repository
-	repo = github.New(&http.Client{
+	repo = github.New(cfg.Github, &http.Client{
 		Timeout: 5 * time.Second,
 	})
 
