@@ -31,8 +31,9 @@ type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-func New(c HTTPClient) *Service {
+func New(cfg Config, c HTTPClient) *Service {
 	return &Service{
+		cfg:    cfg,
 		client: c,
 	}
 }
@@ -44,6 +45,10 @@ type Service struct {
 
 // https://docs.github.com/en/rest/repos/repos?apiVersion=2022-11-28#list-repository-tags
 func (s *Service) ListVersions(ctx context.Context, owner, repo, module string) ([]string, error) {
+	if err := s.validRepo(owner, repo); err != nil {
+		return nil, err
+	}
+
 	var (
 		page     = 1
 		prefix   = module + "/"
@@ -80,6 +85,10 @@ func (s *Service) ListVersions(ctx context.Context, owner, repo, module string) 
 }
 
 func (s *Service) ProxyDownload(ctx context.Context, owner, repo, module, version string, w io.Writer) error {
+	if err := s.validRepo(owner, repo); err != nil {
+		return err
+	}
+
 	uri := fmt.Sprintf("repos/%s/%s/tarball/refs/tags/%s/%s", owner, repo, module, version)
 	body, err := s.makeRequest(ctx, uri)
 	if err != nil {
@@ -134,6 +143,25 @@ func (s *Service) makeRequest(ctx context.Context, uri string) (io.ReadCloser, e
 	}
 
 	return res.Body, nil
+}
+
+func (s *Service) validRepo(owner, repo string) error {
+	if len(s.cfg.Repositories) == 0 {
+		return nil
+	}
+
+	if repos, ok := s.cfg.Repositories[owner]; ok {
+		for _, r := range repos {
+			if r == repo {
+				return nil
+			}
+		}
+	}
+
+	return &httpErr{
+		code: http.StatusForbidden,
+		msg:  "not a valid repository",
+	}
 }
 
 func copy(prefix string, w *tar.Writer, r *tar.Reader) error {
