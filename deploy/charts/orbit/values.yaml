@@ -1,0 +1,76 @@
+# Default values for orbit.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+cache:
+  enabled: false
+  path: /tmp
+  expiry: 10s
+github:
+  # Existing secret to read token from
+  token_secret: ""
+  # Or create a new secret with this token.
+  token: ""
+  # Limit proxy to a set of repositories. Defaults to allow all
+
+  repositories: ""
+replicaCount: 1
+
+image:
+  repository: ghcr.io/hedlund/orbit
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  # FIXME: change back to empty on first release
+  tag: main
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: false
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+resources: {}
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
