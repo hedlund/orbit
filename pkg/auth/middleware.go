@@ -2,7 +2,7 @@
 // Use of this source code is governed by the GNU Affero
 // GPL license that can be found in the LICENSE file.
 
-package github
+package auth
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func AddTokenMiddleware(next http.Handler) http.Handler {
+func TokenMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		header := r.Header.Get("Authorization")
 		if len(header) >= 7 && strings.ToLower(header[0:7]) == "bearer " {

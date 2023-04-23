@@ -6,12 +6,36 @@ package modules
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"time"
 
+	"github.com/hedlund/orbit/pkg/auth"
 	"github.com/hedlund/orbit/pkg/router"
 )
+
+var (
+	errInvalidToken = errors.New("invalid token")
+	errTokenExpired = errors.New("token expired")
+)
+
+type Config struct {
+	ProxySecret     []byte        `envconfig:"PROXY_SECRET" required:"true"`
+	TokenExpiration time.Duration `envconfig:"TOKEN_EXPIRATION" default:"60s"`
+}
+
+type Cipher interface {
+	Seal(dst, nonce, plaintext, additionalData []byte) []byte
+	Open(dst, nonce, ciphertext, additionalData []byte) ([]byte, error)
+	NonceSize() int
+}
 
 type Logger interface {
 	Error(msg string, args ...any)
@@ -23,16 +47,34 @@ type Repository interface {
 	ProxyDownload(ctx context.Context, owner, repo, module, version string, w io.Writer) error
 }
 
-func NewHTTP(log Logger, m Repository) *Handler {
-	return &Handler{log, m}
+func NewHTTP(cfg Config, log Logger, r Repository) (*Handler, error) {
+	c, err := aes.NewCipher(cfg.ProxySecret)
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(c)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Handler{
+		cfg:    cfg,
+		cipher: gcm,
+		log:    log,
+		now:    time.Now,
+		repo:   r,
+	}, nil
 }
 
 type Handler struct {
-	log  Logger
-	repo Repository
+	cfg    Config
+	cipher Cipher
+	log    Logger
+	now    func() time.Time
+	repo   Repository
 }
 
-func (h Handler) ListVersions(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ListVersions(w http.ResponseWriter, r *http.Request) {
 	var (
 		ctx       = r.Context()
 		namespace = router.GetParameter(ctx, "namespace")
@@ -55,19 +97,41 @@ func (h Handler) ListVersions(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h Handler) DownloadURL(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("X-Terraform-Get", "./proxy?archive=tar.gz")
+func (h *Handler) DownloadURL(w http.ResponseWriter, r *http.Request) {
+	downloadURL := "./proxy?archive=tar.gz"
+	if token := auth.GetToken(r.Context(), ""); token != "" {
+		encoded, err := h.encodeToken(token)
+		if err != nil {
+			h.log.Error("encoding token", "err", err)
+			respErr(w, err)
+			return
+		}
+		downloadURL += "&token=" + encoded
+	}
+	w.Header().Add("X-Terraform-Get", downloadURL)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h Handler) ProxyDownload(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ProxyDownload(w http.ResponseWriter, r *http.Request) {
 	var (
 		ctx       = r.Context()
 		namespace = router.GetParameter(ctx, "namespace")
 		name      = router.GetParameter(ctx, "name")
 		system    = router.GetParameter(ctx, "system")
 		version   = router.GetParameter(ctx, "version")
+		token     = r.URL.Query().Get("token")
 	)
+
+	if token != "" {
+		var err error
+		token, err = h.decodeToken(token)
+		if err != nil {
+			h.log.Error("decoding token", "err", err)
+			respErr(w, err)
+			return
+		}
+		ctx = auth.WithToken(ctx, token)
+	}
 
 	//w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s-%s-%s-%s.tar.gz", owner, repo, module, version))
 	if err := h.repo.ProxyDownload(ctx, namespace, name, system, version, w); err != nil {
@@ -75,6 +139,55 @@ func (h Handler) ProxyDownload(w http.ResponseWriter, r *http.Request) {
 		respErr(w, err)
 		return
 	}
+}
+
+func (h *Handler) encodeToken(token string) (string, error) {
+	b, err := json.Marshal(&encodedToken{
+		Token:     token,
+		EncodedAt: h.now().Unix(),
+	})
+	if err != nil {
+		return "", fmt.Errorf("marshalling token into JSON: %w", err)
+	}
+
+	nonce := make([]byte, h.cipher.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return "", fmt.Errorf("generating token nonce: %w", err)
+	}
+
+	encoded := h.cipher.Seal(nonce, nonce, b, nil)
+	return hex.EncodeToString(encoded), nil
+}
+
+func (h *Handler) decodeToken(encoded string) (string, error) {
+	ciphertext, err := hex.DecodeString(encoded)
+	if err != nil {
+		return "", fmt.Errorf("decoding token string: %w", err)
+	}
+
+	nonceSize := h.cipher.NonceSize()
+	if len(encoded) < nonceSize {
+		return "", fmt.Errorf("token is too short: %w", errInvalidToken)
+	}
+
+	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+	b, err := h.cipher.Open(nil, nonce, []byte(ciphertext), nil)
+	if err != nil {
+		return "", fmt.Errorf("decoding token: %w", err)
+	}
+
+	var token encodedToken
+	if err := json.Unmarshal(b, &token); err != nil {
+		return "", fmt.Errorf("unmarshal token: %w", err)
+	}
+
+	now := h.now().UTC()
+	validUntil := time.Unix(token.EncodedAt, 0).Add(h.cfg.TokenExpiration).UTC()
+	if !now.Before(validUntil) {
+		return "", fmt.Errorf("%w: valid until %s", errTokenExpired, validUntil)
+	}
+
+	return token.Token, nil
 }
 
 func respErr(w http.ResponseWriter, err error) {
@@ -110,4 +223,9 @@ type module struct {
 
 type version struct {
 	Version string `json:"version"`
+}
+
+type encodedToken struct {
+	Token     string `json:"token"`
+	EncodedAt int64  `json:"encoded_at"`
 }
