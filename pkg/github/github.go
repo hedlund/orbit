@@ -14,6 +14,8 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+
+	"github.com/hedlund/orbit/pkg/auth"
 )
 
 const (
@@ -126,7 +128,7 @@ func (s *Service) makeRequest(ctx context.Context, uri string) (io.ReadCloser, e
 	req.Header.Add("Accept", contentType)
 	req.Header.Add("X-GitHub-Api-Version", apiVersion)
 
-	if token := GetToken(ctx, s.cfg.Token); token != "" {
+	if token := auth.GetToken(ctx, s.cfg.Token); token != "" {
 		req.Header.Add("Authorization", "Bearer "+token)
 	}
 

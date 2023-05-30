@@ -11,6 +11,7 @@ import (
 
 	"golang.org/x/exp/slog"
 
+	"github.com/hedlund/orbit/pkg/auth"
 	"github.com/hedlund/orbit/pkg/envconfig"
 	"github.com/hedlund/orbit/pkg/github"
 	"github.com/hedlund/orbit/pkg/mcache"
@@ -25,8 +26,9 @@ type config struct {
 		Path       string        `envconfig:"PATH" default:"/tmp"`
 		Expiration time.Duration `envconfig:"EXPIRATION" default:"10s"`
 	} `envconfig:"CACHE_"`
-	Github github.Config `envconfig:"GITHUB_"`
-	Server server.Config
+	Github  github.Config  `envconfig:"GITHUB_"`
+	Modules modules.Config `envconfig:"MODULES_"`
+	Server  server.Config
 }
 
 func main() {
@@ -50,10 +52,13 @@ func main() {
 		)
 	}
 
-	h := modules.NewHTTP(log, repo)
+	h, err := modules.NewHTTP(cfg.Modules, log, repo)
+	if err != nil {
+		panic(err)
+	}
 
 	r := router.New()
-	r.Use(github.AddTokenMiddleware)
+	r.Use(auth.TokenMiddleware)
 
 	r.Get("/v1/modules/:namespace/:name/:system/versions", h.ListVersions)
 	r.Get("/v1/modules/:namespace/:name/:system/:version/download", h.DownloadURL)

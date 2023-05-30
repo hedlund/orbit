@@ -7,6 +7,8 @@ tasks:
     desc: Run the server
     cmds:
       - go run ./cmd/server
+    env:
+      MODULES_PROXY_SECRET: c3VwZXJzZWNyZXQxMjM0IQ==
 
   run:tls:
     desc: Run the server with TLS
@@ -15,6 +17,7 @@ tasks:
     cmds:
       - go run ./cmd/server
     env:
+      MODULES_PROXY_SECRET: c3VwZXJzZWNyZXQxMjM0IQ==
       PORT: 8443
       TLS_ENABLED: true
       TLS_KEY_FILE: deploy/localhost.key
