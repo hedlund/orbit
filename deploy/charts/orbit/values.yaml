@@ -9,10 +9,11 @@ cache:
 github:
   # Existing secret to read token from
   token_secret: ""
+
   # Or create a new secret with this token.
   token: ""
-  # Limit proxy to a set of repositories. Defaults to allow all
 
+  # Limit proxy to a set of repositories. Defaults to allow all
   repositories: ""
 replicaCount: 1
 
@@ -26,6 +27,9 @@ image:
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
+
+# Support for custom env variables
+extraEnvs: []
 
 serviceAccount:
   # Specifies whether a service account should be created

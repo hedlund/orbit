@@ -59,15 +59,18 @@ spec:
               value: {{ .Values.cache.path }}
             - name: CACHE_EXPIRY
               value: {{ .Values.cache.expiry }}
+          {{- with .Values.extraEnvs }}
+          {{- toYaml . | nindent 12 }}
+          {{- end }}
             {{- end }}
           {{- if .Values.github.token}}
           envFrom: 
             - secretRef:
               name: {{ include "orbit.fullname "}}
-          {{- else if .Values.existing_token }}
+          {{- else if .Values.github.token_secret }}
           envFrom: 
-          name: {{ .Values.token_secret }}
             - secretRef:
+                name: {{ .Values.github.token_secret }}
           {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
