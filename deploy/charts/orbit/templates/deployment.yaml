@@ -71,7 +71,38 @@ spec:
           envFrom: 
             - secretRef:
                 name: {{ .Values.github.token_secret }}
+            {{- if .Values.extraSecretsMounts.enabled }}
+          volumeMounts:
+            {{- range .Values.extraSecretsMounts.secrets }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              readOnly: {{ .readOnly }}
+            {{- end }}
+            {{- end }}
           {{- end }}
+        {{- if .Values.extraSecretsMounts.enabled }}
+      volumes:
+        {{- range .Values.extraSecretsMounts.secrets }}
+        {{- if .secretName }}
+        - name: {{ .name }}
+          secret:
+            secretName: {{ .secretName }}
+            defaultMode: {{ .defaultMode }}
+            {{- with .items }}
+            items:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+        {{- else if .projected }}
+        - name: {{ .name }}
+          projected:
+            {{- toYaml .projected | nindent 12 }}
+        {{- else if .csi }}
+        - name: {{ .name }}
+          csi:
+            {{- toYaml .csi | nindent 12 }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
