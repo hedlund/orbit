@@ -82,7 +82,7 @@ func (h *Handler) ListVersions(w http.ResponseWriter, r *http.Request) {
 		system    = router.GetParameter(ctx, "system")
 	)
 
-	versions, err := h.repo.ListVersions(ctx, namespace, name, system)
+	versions, err := h.repo.ListVersions(ctx, system, namespace, name)
 	if err != nil {
 		h.log.Error("list versions", "err", err)
 		respErr(w, err)
@@ -133,8 +133,8 @@ func (h *Handler) ProxyDownload(w http.ResponseWriter, r *http.Request) {
 		ctx = auth.WithToken(ctx, token)
 	}
 
-	//w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s-%s-%s-%s.tar.gz", owner, repo, module, version))
-	if err := h.repo.ProxyDownload(ctx, namespace, name, system, version, w); err != nil {
+	// w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s-%s-%s-%s.tar.gz", owner, repo, module, version))
+	if err := h.repo.ProxyDownload(ctx, system, namespace, name, version, w); err != nil {
 		h.log.Error("proxy download", "err", err)
 		respErr(w, err)
 		return
@@ -202,7 +202,7 @@ func respErr(w http.ResponseWriter, err error) {
 }
 
 func newListVersionsResponse(versions []string) *listVersionsResponse {
-	var m = module{
+	m := module{
 		Versions: make([]version, len(versions)),
 	}
 	for n, v := range versions {
