@@ -26,6 +26,7 @@ const (
 
 type Config struct {
 	Repositories map[string][]string `envconfig:"REPOSITORIES"`
+	OrgMappings  map[string]string   `envconfig:"ORG_MAPPINGS"`
 	Token        string              `envconfig:"TOKEN"`
 }
 
@@ -46,7 +47,8 @@ type Service struct {
 }
 
 // https://docs.github.com/en/rest/repos/repos?apiVersion=2022-11-28#list-repository-tags
-func (s *Service) ListVersions(ctx context.Context, owner, repo, module string) ([]string, error) {
+func (s *Service) ListVersions(ctx context.Context, system, repo, module string) ([]string, error) {
+	owner := s.mapOrg(system)
 	if err := s.validRepo(owner, repo); err != nil {
 		return nil, err
 	}
@@ -86,7 +88,8 @@ func (s *Service) ListVersions(ctx context.Context, owner, repo, module string) 
 	return versions, nil
 }
 
-func (s *Service) ProxyDownload(ctx context.Context, owner, repo, module, version string, w io.Writer) error {
+func (s *Service) ProxyDownload(ctx context.Context, system, repo, module, version string, w io.Writer) error {
+	owner := s.mapOrg(system)
 	if err := s.validRepo(owner, repo); err != nil {
 		return err
 	}
@@ -145,6 +148,13 @@ func (s *Service) makeRequest(ctx context.Context, uri string) (io.ReadCloser, e
 	}
 
 	return res.Body, nil
+}
+
+func (s *Service) mapOrg(system string) string {
+	if owner, ok := s.cfg.OrgMappings[system]; ok {
+		return owner
+	}
+	return system
 }
 
 func (s *Service) validRepo(owner, repo string) error {
