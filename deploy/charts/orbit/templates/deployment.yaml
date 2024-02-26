@@ -59,10 +59,10 @@ spec:
               value: {{ .Values.cache.path }}
             - name: CACHE_EXPIRY
               value: {{ .Values.cache.expiry }}
+          {{- end }}
           {{- with .Values.extraEnvs }}
           {{- toYaml . | nindent 12 }}
           {{- end }}
-            {{- end }}
           {{- if .Values.github.token}}
           envFrom: 
             - secretRef:
