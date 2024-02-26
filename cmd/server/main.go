@@ -5,11 +5,10 @@
 package main
 
 import (
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
-
-	"golang.org/x/exp/slog"
 
 	"github.com/hedlund/orbit/pkg/auth"
 	"github.com/hedlund/orbit/pkg/envconfig"
@@ -35,7 +34,7 @@ func main() {
 	var cfg config
 	envconfig.MustProcess(&cfg)
 
-	log := slog.New(slog.NewTextHandler(os.Stdout))
+	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	var repo modules.Repository
 	repo = github.New(cfg.Github, &http.Client{
